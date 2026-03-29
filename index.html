@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Doodle for AI</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        window.db = db;
+        window.appId = appId;
+        window.addDoc = addDoc;
+        window.collection = collection;
+        window.serverTimestamp = serverTimestamp;
+
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error", error);
+            }
+        };
+        
+        onAuthStateChanged(auth, (user) => {
+            window.currentUser = user;
+        });
+
+        initAuth();
+    </script>
+
+    <style>
+        :root {
+            --bg-dark: #313338;
+            --bg-sidebar: #2b2d31;
+            --text-main: #dbdee1;
+            --accent: #5865f2;
+            --canvas-bg: #35393e; 
+        }
+        body { background-color: var(--bg-dark); color: var(--text-main); overflow: hidden; margin: 0; padding: 0; }
+        
+        #drawCanvas { 
+            touch-action: none; 
+            cursor: crosshair; 
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-color: var(--canvas-bg);
+        }
+        
+        .prediction-bar { transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pulse-robot { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .robot-thinking { animation: pulse-robot 2s infinite ease-in-out; }
+        
+        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: #1e1f22; border-radius: 10px; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col md:flex-row font-sans">
+
+    <!-- Drawing Panel -->
+    <div class="flex-1 md:w-[70%] h-full flex flex-col relative bg-[#35393e]">
+        <div class="absolute top-4 left-4 right-4 z-10 pointer-events-none flex items-start justify-between">
+            <div class="bg-black/40 backdrop-blur-md p-3 rounded-xl border border-white/10 pointer-events-auto">
+                <h1 class="text-lg font-bold text-white flex items-center gap-2">
+                    <span class="bg-[#5865f2] p-1 rounded text-sm">🎨</span> Canvas
+                </h1>
+            </div>
+            
+            <button id="btnClear" class="pointer-events-auto px-4 py-2 bg-[#da373c] hover:bg-[#a1282c] text-white rounded-lg font-bold text-sm shadow-xl transition-all">
+                Clear
+            </button>
+        </div>
+
+        <div id="canvasContainer" class="flex-1 w-full h-full overflow-hidden">
+            <canvas id="drawCanvas"></canvas>
+        </div>
+
+        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 flex bg-[#111214]/90 backdrop-blur-lg p-2 rounded-2xl shadow-2xl border border-white/10 gap-2 items-center z-10">
+            <button id="btnBrush" class="p-3 rounded-xl hover:bg-[#35373c] transition-colors" title="Brush"><span class="text-2xl">🖌️</span></button>
+            <button id="btnEraser" class="p-3 rounded-xl hover:bg-[#35373c] transition-colors" title="Eraser"><span class="text-2xl">🧽</span></button>
+            <div class="w-[1px] h-8 bg-white/10 mx-1"></div>
+            <div class="flex items-center px-2 gap-3">
+                <span class="text-[10px] font-bold text-gray-400 uppercase">Size</span>
+                <input type="range" id="brushSize" min="5" max="60" value="15" class="w-32 h-1 bg-[#4e5058] rounded-lg appearance-none cursor-pointer accent-[#5865f2]">
+            </div>
+        </div>
+        
+        <canvas id="processCanvas" width="28" height="28" class="hidden"></canvas>
+    </div>
+
+    <!-- AI Sidebar -->
+    <div class="w-full md:w-[30%] bg-[#2b2d31] border-l border-[#1e1f22] flex flex-col p-6 shadow-2xl overflow-y-auto sidebar-scroll z-20">
+        
+        <div id="loadingStatus" class="flex-1 flex flex-col items-center justify-center space-y-4">
+            <div class="text-6xl animate-bounce">🤖</div>
+            <p class="text-lg font-bold text-white">Downloading Brain...</p>
+        </div>
+
+        <div id="resultsArea" class="hidden flex-1 flex flex-col space-y-6">
+            <div class="flex flex-col items-center text-center pt-4">
+                <div id="robotIcon" class="text-8xl mb-4 drop-shadow-2xl">🤖</div>
+                
+                <div class="bg-[#1e1f22] p-5 rounded-2xl w-full border border-white/5 shadow-inner">
+                    <p class="text-[10px] font-black text-[#b5bac1] uppercase tracking-[0.2em] mb-2">Guessing...</p>
+                    <h2 id="topPrediction" class="text-3xl font-black text-white capitalize mb-1">...</h2>
+                    <p id="topConfidenceText" class="text-[#5865f2] font-black text-sm">Draw something!</p>
+                    <div class="mt-4 h-3 w-full bg-[#313338] rounded-full overflow-hidden">
+                        <div id="topBar" class="prediction-bar h-full bg-[#5865f2]" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-[#232428] rounded-2xl p-5 border border-[#5865f2]/20">
+                <p class="text-[10px] font-black text-[#5865f2] uppercase tracking-[0.2em] mb-3">🚀 Help me learn</p>
+                <div class="space-y-4">
+                    <input type="text" id="labelInput" placeholder="What was it?" 
+                           class="w-full bg-[#1e1f22] border border-white/5 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#5865f2]/50 transition-all">
+                    <button id="btnSubmitData" class="w-full py-3 bg-[#5865f2] hover:bg-[#4752c4] text-white rounded-xl font-black text-sm transition-all">
+                        Contribute
+                    </button>
+                    <p id="submitStatus" class="text-[10px] text-center font-bold uppercase hidden"></p>
+                </div>
+            </div>
+
+            <div id="otherGuesses" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <script>
+        const LABELS = ["aircraft carrier", "airplane", "alarm clock", "ambulance", "angel", "animal migration", "ant", "anvil", "apple", "arm", "asparagus", "axe", "backpack", "banana", "bandage", "barn", "baseball", "baseball bat", "basket", "basketball", "bat", "bathtub", "beach", "bear", "beard", "bed", "bee", "belt", "bench", "bicycle", "binoculars", "bird", "birthday cake", "blackberry", "blueberry", "book", "boomerang", "bottlecap", "bowtie", "bracelet", "brain", "bread", "bridge", "broccoli", "broom", "bucket", "bulldozer", "bus", "bush", "butterfly", "cactus", "cake", "calculator", "calendar", "camel", "camera", "camouflage", "campfire", "candle", "cannon", "canoe", "car", "carrot", "castle", "cat", "ceiling fan", "cello", "cell phone", "chair", "chandelier", "church", "circle", "clarinet", "clock", "cloud", "coffee cup", "compass", "computer", "cookie", "cooler", "couch", "cow", "crab", "crayon", "crocodile", "crown", "cruise ship", "cup", "diamond", "dishwasher", "diving board", "dog", "dolphin", "donut", "door", "dragon", "dresser", "drill", "drums", "duck", "dumbbell", "ear", "elbow", "elephant", "envelope", "eraser", "eye", "eyeglasses", "face", "fan", "feather", "fence", "finger", "fire hydrant", "fireplace", "firetruck", "fish", "flamingo", "flashlight", "flip flops", "floor lamp", "flower", "flying saucer", "foot", "fork", "frog", "frying pan", "garden", "garden hose", "giraffe", "goatee", "golf club", "grapes", "grass", "guitar", "hamburger", "hammer", "hand", "harp", "hat", "headphones", "hedgehog", "helicopter", "helmet", "hexagon", "hockey puck", "hockey stick", "horse", "hospital", "hot air balloon", "hot dog", "hot tub", "hourglass", "house", "house plant", "hurricane", "ice cream", "jacket", "jail", "kangaroo", "key", "keyboard", "knee", "knife", "ladder", "lantern", "laptop", "leaf", "leg", "light bulb", "lighter", "lighthouse", "lightning", "line", "lion", "lipstick", "lobster", "lollipop", "mailbox", "map", "marker", "matches", "megaphone", "mermaid", "microphone", "microwave", "monkey", "moon", "mosquito", "motorbike", "mountain", "mouse", "moustache", "mouth", "mug", "mushroom", "nail", "necklace", "nose", "ocean", "octagon", "octopus", "onion", "oven", "owl", "paintbrush", "paint can", "palm tree", "panda", "pants", "paper clip", "parachute", "parrot", "passport", "peanut", "pear", "peas", "pencil", "penguin", "piano", "pickup truck", "picture frame", "pig", "pillow", "pineapple", "pizza", "pliers", "police car", "pond", "pool", "popsicle", "postcard", "potato", "power outlet", "purse", "rabbit", "raccoon", "radio", "rain", "rainbow", "rake", "remote control", "rhinoceros", "rifle", "river", "roller coaster", "roller skates", "sailboat", "sandwich", "saw", "saxophone", "school bus", "scissors", "scorpion", "screwdriver", "sea turtle", "see saw", "shark", "sheep", "shoe", "shorts", "shovel", "sink", "skateboard", "skull", "skyscraper", "sleeping bag", "smiley face", "snail", "snake", "snorkel", "snowflake", "snowman", "soccer ball", "sock", "speedboat", "spider", "spoon", "spreadsheet", "square", "squiggle", "squirrel", "stairs", "star", "steak", "stereo", "stethoscope", "stitches", "stop sign", "stove", "strawberry", "streetlight", "string bean", "submarine", "suitcase", "sun", "sunglasses", "sunrise", "sweater", "swing set", "sword", "syringe", "table", "teapot", "teddy-bear", "telephone", "television", "tennis racquet", "tent", "the mona lisa", "thermometer", "tiger", "toaster", "toe", "toilet", "tooth", "toothbrush", "toothpaste", "tornado", "tractor", "traffic light", "train", "tree", "triangle", "trombone", "truck", "trumpet", "t-shirt", "turtle", "umbrella", "underwear", "van", "vase", "violin", "washing machine", "watermelon", "waterslide", "whale", "wheel", "windmill", "wine bottle", "wine glass", "wrist watch", "zebra", "zigzag"];
+
+        let model;
+        const canvas = document.getElementById('drawCanvas');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const procCanvas = document.getElementById('processCanvas');
+        const ctx = canvas.getContext('2d');
+        const pCtx = procCanvas.getContext('2d');
+        const brushSizeSlider = document.getElementById('brushSize');
+        
+        let isDrawing = false;
+        let currentTool = 'brush';
+
+        // Internal "AI-ready" canvas for processing (always black and white)
+        const aiCanvas = document.createElement('canvas');
+        const aiCtx = aiCanvas.getContext('2d');
+
+        function resizeCanvas() {
+            const width = canvasContainer.clientWidth;
+            const height = canvasContainer.clientHeight;
+            if (width <= 0 || height <= 0) return;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
+
+            canvas.width = width;
+            canvas.height = height;
+            aiCanvas.width = width;
+            aiCanvas.height = height;
+            
+            // Background is white for AI logic, but grey for UI via CSS
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(tempCanvas, 0, 0);
+            
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+        }
+
+        const resizeObserver = new ResizeObserver(() => resizeCanvas());
+        resizeObserver.observe(canvasContainer);
+
+        function getCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+            const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            return { x, y };
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            ctx.beginPath();
+            const c = getCoords(e);
+            ctx.moveTo(c.x, c.y);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const c = getCoords(e);
+            ctx.lineWidth = brushSizeSlider.value;
+            ctx.strokeStyle = currentTool === 'brush' ? 'black' : 'white';
+            ctx.lineTo(c.x, c.y);
+            ctx.stroke();
+        }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        window.addEventListener('mouseup', () => isDrawing = false);
+        canvas.addEventListener('touchstart', startDrawing, {passive:false});
+        canvas.addEventListener('touchmove', draw, {passive:false});
+
+        document.getElementById('btnClear').onclick = () => {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            resetPredictionUI();
+        };
+
+        function resetPredictionUI() {
+            document.getElementById('topPrediction').textContent = "...";
+            document.getElementById('topConfidenceText').textContent = "Draw something!";
+            document.getElementById('topBar').style.width = "0%";
+            document.getElementById('otherGuesses').innerHTML = '';
+            document.getElementById('robotIcon').classList.remove('robot-thinking');
+        }
+
+        async function loadModel() {
+            if (typeof tf === 'undefined') {
+                setTimeout(loadModel, 200);
+                return;
+            }
+            try {
+                // Pointing to a reliable source for DoodleNet
+                const modelUrl = 'https://yining1023.github.io/doodleNet/demo/DoodleClassifier_345/model/model.json';
+                model = await tf.loadLayersModel(modelUrl);
+                document.getElementById('loadingStatus').classList.add('hidden');
+                document.getElementById('resultsArea').classList.remove('hidden');
+                setInterval(predict, 800);
+            } catch (err) {
+                console.error("Model Load Error", err);
+                document.getElementById('loadingStatus').innerHTML = "<p class='text-red-500'>Failed to load AI brain</p>";
+            }
+        }
+
+        function getProcessedTensor() {
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+            let hasPixels = false;
+
+            // Simple pixel check to find drawing bounds
+            for (let y = 0; y < canvas.height; y++) {
+                for (let x = 0; x < canvas.width; x++) {
+                    const idx = (y * canvas.width + x) * 4;
+                    if (imgData.data[idx] < 200) { // Found a dark stroke
+                        minX = Math.min(minX, x);
+                        minY = Math.min(minY, y);
+                        maxX = Math.max(maxX, x);
+                        maxY = Math.max(maxY, y);
+                        hasPixels = true;
+                    }
+                }
+            }
+
+            if (!hasPixels) return "empty";
+
+            // Crop to bounding box with padding
+            const p = 40;
+            const width = (maxX - minX) + p * 2;
+            const height = (maxY - minY) + p * 2;
+            const size = Math.max(width, height);
+            
+            pCtx.fillStyle = "white";
+            pCtx.fillRect(0, 0, 28, 28);
+            
+            // Draw into 28x28 buffer
+            pCtx.drawImage(canvas, minX - p, minY - p, size, size, 0, 0, 28, 28);
+
+            return tf.tidy(() => {
+                let tensor = tf.browser.fromPixels(procCanvas, 1);
+                tensor = tf.cast(tensor, 'float32');
+                // Invert and normalize: (255 - x) / 255.0
+                tensor = tf.scalar(255).sub(tensor).div(tf.scalar(255));
+                return tensor.expandDims(0);
+            });
+        }
+
+        async function predict() {
+            if (!model) return;
+            const tensor = getProcessedTensor();
+            
+            if (tensor === "empty") {
+                resetPredictionUI();
+                return;
+            }
+
+            const output = model.predict(tensor);
+            const data = await output.data();
+            
+            const results = Array.from(data)
+                .map((prob, i) => ({ prob, label: LABELS[i] }))
+                .sort((a, b) => b.prob - a.prob)
+                .slice(0, 5);
+
+            updateUI(results);
+            
+            tensor.dispose();
+            output.dispose();
+        }
+
+        function updateUI(results) {
+            const top = results[0];
+            const robot = document.getElementById('robotIcon');
+            
+            // Require higher confidence to show result (prevents fireplace noise)
+            if (top.prob > 0.15) {
+                document.getElementById('topPrediction').textContent = top.label;
+                document.getElementById('topConfidenceText').textContent = `${Math.round(top.prob * 100)}% sure`;
+                document.getElementById('topBar').style.width = `${top.prob * 100}%`;
+                robot.classList.add('robot-thinking');
+            } else {
+                resetPredictionUI();
+            }
+
+            const others = document.getElementById('otherGuesses');
+            others.innerHTML = '';
+            results.slice(1).forEach(r => {
+                if (r.prob < 0.05) return;
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between text-xs bg-[#1e1f22] p-3 rounded-lg border border-white/5";
+                div.innerHTML = `<span class="capitalize">${r.label}</span><span class="text-gray-500">${Math.round(r.prob * 100)}%</span>`;
+                others.appendChild(div);
+            });
+        }
+
+        window.onload = loadModel;
+    </script>
+</body>
+</html>
