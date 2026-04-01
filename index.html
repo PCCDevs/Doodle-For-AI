@@ -13,13 +13,29 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // --- GITHUB DEPLOYMENT FIX ---
+        // If you are deploying to GitHub, replace the line below with your actual Firebase config object:
+        // const firebaseConfig = { apiKey: "...", authDomain: "...", ... };
+        let firebaseConfig;
+        try {
+            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+                apiKey: "AIzaSyCaNahh-MwnI-W8tnguI4530ifMYIixL7s",
+          authDomain: "firedev-5128b.firebaseapp.com",
+          projectId: "firedev-5128b",
+          storageBucket: "firedev-5128b.firebasestorage.app",
+          messagingSenderId: "948990270003",
+          appId: "1:948990270003:web:43d0bd7e1c30ef94f62146",
+          measurementId: "G-ET93NQZLD9"
+            };
+        } catch (e) {
+            console.error("Firebase config missing or invalid.");
+        }
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'global-doodle-bot';
 
-        // Export to window for access in standard script tags
         window.db = db;
         window.appId = appId;
         window.addDoc = addDoc;
@@ -40,13 +56,13 @@
                 }
             } catch (error) {
                 console.error("Auth error", error);
+                document.getElementById('loadingStatus').innerHTML = `<p class="text-red-500 font-bold">Auth Failed: Check Firebase Config</p>`;
             }
         };
         
         onAuthStateChanged(auth, (user) => {
             window.currentUser = user;
             if(user) {
-                console.log("User authenticated:", user.uid);
                 if (window.startCommunityBrain) window.startCommunityBrain();
             }
         });
@@ -63,30 +79,18 @@
             --canvas-bg: #35393e; 
         }
         body { background-color: var(--bg-dark); color: var(--text-main); overflow: hidden; margin: 0; padding: 0; }
-        
-        #drawCanvas { 
-            touch-action: none; 
-            cursor: crosshair; 
-            display: block;
-            width: 100%;
-            height: 100%;
-            background-color: var(--canvas-bg);
-        }
-        
+        #drawCanvas { touch-action: none; cursor: crosshair; display: block; width: 100%; height: 100%; background-color: var(--canvas-bg); }
         .prediction-bar { transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes pulse-robot { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
         .robot-thinking { animation: pulse-robot 2s infinite ease-in-out; }
-        
         .sidebar-scroll::-webkit-scrollbar { width: 4px; }
         .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
         .sidebar-scroll::-webkit-scrollbar-thumb { background: #1e1f22; border-radius: 10px; }
-
         .pixelated { image-rendering: pixelated; }
     </style>
 </head>
 <body class="h-screen w-screen flex flex-col md:flex-row font-sans">
 
-    <!-- Drawing Panel -->
     <div class="flex-1 md:w-[70%] h-full flex flex-col relative bg-[#35393e]">
         <div class="absolute top-4 left-4 right-4 z-10 pointer-events-none flex items-start justify-between">
             <div class="bg-black/40 backdrop-blur-md p-3 rounded-xl border border-white/10 pointer-events-auto">
@@ -95,17 +99,11 @@
                 </h1>
                 <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Shared Global Brain</p>
             </div>
-            
-            <button id="btnClear" class="pointer-events-auto px-4 py-2 bg-[#da373c] hover:bg-[#a1282c] text-white rounded-lg font-bold text-sm shadow-xl transition-all">
-                Clear
-            </button>
+            <button id="btnClear" class="pointer-events-auto px-4 py-2 bg-[#da373c] hover:bg-[#a1282c] text-white rounded-lg font-bold text-sm shadow-xl transition-all">Clear</button>
         </div>
-
         <div id="canvasContainer" class="flex-1 w-full h-full overflow-hidden">
             <canvas id="drawCanvas"></canvas>
         </div>
-
-        <!-- Tool Palette -->
         <div class="absolute bottom-6 left-1/2 -translate-x-1/2 flex bg-[#111214]/90 backdrop-blur-lg p-2 rounded-2xl shadow-2xl border border-white/10 gap-2 items-center z-10">
             <button id="btnBrush" class="p-3 rounded-xl hover:bg-[#35373c] transition-colors" title="Brush"><span class="text-2xl">🖌️</span></button>
             <button id="btnEraser" class="p-3 rounded-xl hover:bg-[#35373c] transition-colors" title="Eraser"><span class="text-2xl">🧽</span></button>
@@ -115,23 +113,18 @@
                 <input type="range" id="brushSize" min="5" max="60" value="15" class="w-32 h-1 bg-[#4e5058] rounded-lg appearance-none cursor-pointer accent-[#5865f2]">
             </div>
         </div>
-        
         <canvas id="processCanvas" width="28" height="28" class="hidden"></canvas>
     </div>
 
-    <!-- AI Sidebar -->
     <div class="w-full md:w-[30%] bg-[#2b2d31] border-l border-[#1e1f22] flex flex-col p-6 shadow-2xl overflow-y-auto sidebar-scroll z-20 relative">
-        <button id="btnAdmin" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors" title="Admin Panel">⚙️</button>
-        
+        <button id="btnAdmin" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">⚙️</button>
         <div id="loadingStatus" class="flex-1 flex flex-col items-center justify-center space-y-4">
             <div class="text-6xl animate-bounce">🧠</div>
             <p class="text-lg font-bold text-white">Connecting to Community Brain...</p>
         </div>
-
         <div id="resultsArea" class="hidden flex-1 flex flex-col space-y-6">
             <div class="flex flex-col items-center text-center pt-4">
                 <div id="robotIcon" class="text-8xl mb-4 drop-shadow-2xl">🤖</div>
-                
                 <div class="bg-[#1e1f22] p-5 rounded-2xl w-full border border-white/5 shadow-inner">
                     <p class="text-[10px] font-black text-[#b5bac1] uppercase tracking-[0.2em] mb-2">Live Inference</p>
                     <h2 id="topPrediction" class="text-3xl font-black text-white capitalize mb-1">...</h2>
@@ -141,44 +134,29 @@
                     </div>
                 </div>
             </div>
-
             <div class="bg-[#232428] rounded-2xl p-5 border border-[#5865f2]/30 shadow-lg">
-                <p class="text-[11px] font-black text-[#5865f2] uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
-                    <span class="animate-pulse">🟢</span> Global Training
-                </p>
+                <p class="text-[11px] font-black text-[#5865f2] uppercase tracking-[0.2em] mb-3 flex items-center gap-2"><span class="animate-pulse">🟢</span> Global Training</p>
                 <div class="space-y-4">
-                    <div class="relative">
-                        <input type="text" id="labelInput" placeholder="Label (e.g. 'cat')" 
-                               class="w-full bg-[#1e1f22] border border-white/5 rounded-xl p-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#5865f2]/50 transition-all">
-                    </div>
-                    <button id="btnSubmitData" class="w-full py-4 bg-[#5865f2] hover:bg-[#4752c4] text-white rounded-xl font-black text-sm transition-all transform active:scale-95 flex items-center justify-center gap-2">
-                        <span>📥</span> Feed the Brain
-                    </button>
+                    <input type="text" id="labelInput" placeholder="Label (e.g. 'cat')" class="w-full bg-[#1e1f22] border border-white/5 rounded-xl p-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#5865f2]/50 transition-all">
+                    <button id="btnSubmitData" class="w-full py-4 bg-[#5865f2] hover:bg-[#4752c4] text-white rounded-xl font-black text-sm transition-all transform active:scale-95 flex items-center justify-center gap-2">📥 Feed the Brain</button>
                     <p id="submitStatus" class="text-[10px] text-center font-bold uppercase hidden"></p>
                 </div>
             </div>
-
-            <div class="w-full">
-                <p class="text-[10px] font-black text-[#b5bac1] uppercase tracking-[0.2em] mb-4 px-1">Confidence Ranking</p>
-                <div id="otherGuesses" class="space-y-2"></div>
-            </div>
+            <div id="otherGuesses" class="space-y-2"></div>
         </div>
     </div>
 
-    <!-- Admin Modal -->
     <div id="adminModal" class="fixed inset-0 bg-black/80 z-50 hidden flex-col items-center justify-center p-4 backdrop-blur-sm">
         <div class="bg-[#2b2d31] p-6 rounded-2xl w-full max-w-2xl flex flex-col max-h-[90vh] border border-white/10 shadow-2xl">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-white flex items-center gap-2"><span>⚙️</span> Database Admin</h2>
-                <button id="btnCloseAdmin" class="text-gray-400 hover:text-white text-3xl leading-none">&times;</button>
+                <h2 class="text-xl font-bold text-white">⚙️ Database Admin</h2>
+                <button id="btnCloseAdmin" class="text-gray-400 hover:text-white text-3xl">&times;</button>
             </div>
-            
             <div id="adminAuthView" class="flex flex-col space-y-4 py-8">
-                <input type="password" id="adminPassword" placeholder="Enter Admin Password" class="bg-[#1e1f22] border border-white/5 rounded-xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-[#5865f2]/50 text-center">
-                <button id="btnAdminLogin" class="bg-[#5865f2] hover:bg-[#4752c4] py-3 rounded-xl text-white font-bold transition-colors">Login</button>
+                <input type="password" id="adminPassword" placeholder="Admin Password" class="bg-[#1e1f22] border border-white/5 rounded-xl p-4 text-white focus:outline-none text-center">
+                <button id="btnAdminLogin" class="bg-[#5865f2] hover:bg-[#4752c4] py-3 rounded-xl text-white font-bold">Login</button>
                 <p id="adminAuthError" class="text-red-500 text-sm font-bold text-center hidden">Incorrect Password</p>
             </div>
-
             <div id="adminDataView" class="hidden flex-col flex-1 overflow-hidden">
                 <div class="overflow-y-auto pr-2 space-y-3 flex-1 sidebar-scroll" id="adminDataList"></div>
             </div>
@@ -193,51 +171,25 @@
         const ctx = canvas.getContext('2d');
         const pCtx = procCanvas.getContext('2d');
         const brushSizeSlider = document.getElementById('brushSize');
-        
-        let isDrawing = false;
-        let currentTool = 'brush';
+        let isDrawing = false, currentTool = 'brush';
 
-        const btnBrush = document.getElementById('btnBrush');
-        const btnEraser = document.getElementById('btnEraser');
-
+        const btnBrush = document.getElementById('btnBrush'), btnEraser = document.getElementById('btnEraser');
         btnBrush.classList.add('bg-[#35373c]');
-
-        btnBrush.onclick = () => {
-            currentTool = 'brush';
-            btnBrush.classList.add('bg-[#35373c]');
-            btnEraser.classList.remove('bg-[#35373c]');
-        };
-
-        btnEraser.onclick = () => {
-            currentTool = 'eraser';
-            btnEraser.classList.add('bg-[#35373c]');
-            btnBrush.classList.remove('bg-[#35373c]');
-        };
+        btnBrush.onclick = () => { currentTool = 'brush'; btnBrush.classList.add('bg-[#35373c]'); btnEraser.classList.remove('bg-[#35373c]'); };
+        btnEraser.onclick = () => { currentTool = 'eraser'; btnEraser.classList.add('bg-[#35373c]'); btnBrush.classList.remove('bg-[#35373c]'); };
 
         function resizeCanvas() {
-            const width = canvasContainer.clientWidth;
-            const height = canvasContainer.clientHeight;
+            const width = canvasContainer.clientWidth, height = canvasContainer.clientHeight;
             if (width <= 0 || height <= 0) return;
-
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.drawImage(canvas, 0, 0);
-
-            canvas.width = width;
-            canvas.height = height;
-            
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(tempCanvas, 0, 0);
-            
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
+            const temp = document.createElement('canvas');
+            temp.width = canvas.width; temp.height = canvas.height;
+            temp.getContext('2d').drawImage(canvas, 0, 0);
+            canvas.width = width; canvas.height = height;
+            ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(temp, 0, 0);
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         }
-
-        const resizeObserver = new ResizeObserver(() => resizeCanvas());
-        resizeObserver.observe(canvasContainer);
+        new ResizeObserver(resizeCanvas).observe(canvasContainer);
 
         function getCoords(e) {
             const rect = canvas.getBoundingClientRect();
@@ -245,36 +197,16 @@
             const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
             return { x, y };
         }
-
-        function startDrawing(e) {
-            isDrawing = true;
-            ctx.beginPath();
-            const c = getCoords(e);
-            ctx.moveTo(c.x, c.y);
-        }
-
-        function draw(e) {
-            if (!isDrawing) return;
-            e.preventDefault();
-            const c = getCoords(e);
-            ctx.lineWidth = brushSizeSlider.value;
-            // FIXED: Eraser uses white to "clear" over the canvas background
-            ctx.strokeStyle = currentTool === 'brush' ? 'black' : 'white';
-            ctx.lineTo(c.x, c.y);
-            ctx.stroke();
-        }
-
+        function startDrawing(e) { isDrawing = true; ctx.beginPath(); const c = getCoords(e); ctx.moveTo(c.x, c.y); }
+        function draw(e) { if (!isDrawing) return; e.preventDefault(); const c = getCoords(e); ctx.lineWidth = brushSizeSlider.value; ctx.strokeStyle = currentTool === 'brush' ? 'black' : 'white'; ctx.lineTo(c.x, c.y); ctx.stroke(); }
+        
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         window.addEventListener('mouseup', () => isDrawing = false);
         canvas.addEventListener('touchstart', startDrawing, {passive:false});
         canvas.addEventListener('touchmove', draw, {passive:false});
 
-        document.getElementById('btnClear').onclick = () => {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            resetPredictionUI();
-        };
+        document.getElementById('btnClear').onclick = () => { ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height); resetPredictionUI(); };
 
         function resetPredictionUI() {
             document.getElementById('topPrediction').textContent = "...";
@@ -285,131 +217,64 @@
         }
 
         window.startCommunityBrain = function() {
+            if (!window.db) return;
             const statusEl = document.getElementById('loadingStatus');
-            
-            // Collection Path follows Rule 1 for persistent global storage
             const collRef = window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training');
-            const q = window.query(collRef);
             
-            window.onSnapshot(q, (snapshot) => {
+            window.onSnapshot(window.query(collRef), (snapshot) => {
                 communityDataset = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                
                 statusEl.classList.add('hidden');
                 document.getElementById('resultsArea').classList.remove('hidden');
-                
-                if (communityDataset.length === 0) {
-                    document.getElementById('topPrediction').textContent = "Empty Brain";
-                    document.getElementById('topConfidenceText').textContent = "Teach me something!";
-                } else {
-                    resetPredictionUI();
-                }
-
-                if (document.getElementById('adminDataView') && !document.getElementById('adminDataView').classList.contains('hidden')) {
-                    renderAdminData();
-                }
-
-            }, (error) => {
-                console.error("Database error:", error);
-                statusEl.innerHTML = "<p class='text-red-500'>Connection Failed</p>";
+                resetPredictionUI();
+                if (!adminDataView.classList.contains('hidden')) renderAdminData();
+            }, (err) => {
+                console.error(err);
+                statusEl.innerHTML = `<p class="text-red-500">Database Connection Blocked</p>`;
             });
 
-            if (!window.predictInterval) {
-                window.predictInterval = setInterval(predict, 800);
-            }
+            if (!window.predictInterval) window.predictInterval = setInterval(predict, 800);
         };
 
         function getProcessedTensor() {
             const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
-            let hasPixels = false;
-
+            let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0, hasPixels = false;
             for (let y = 0; y < canvas.height; y++) {
                 for (let x = 0; x < canvas.width; x++) {
-                    const idx = (y * canvas.width + x) * 4;
-                    if (imgData.data[idx] < 200) { 
-                        minX = Math.min(minX, x);
-                        minY = Math.min(minY, y);
-                        maxX = Math.max(maxX, x);
-                        maxY = Math.max(maxY, y);
-                        hasPixels = true;
+                    if (imgData.data[(y * canvas.width + x) * 4] < 200) {
+                        minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); hasPixels = true;
                     }
                 }
             }
-
             if (!hasPixels) return "empty";
-
-            const padding = 50;
-            const w = (maxX - minX) + padding * 2;
-            const h = (maxY - minY) + padding * 2;
-            const size = Math.max(w, h);
-            
-            pCtx.fillStyle = "white";
-            pCtx.fillRect(0, 0, 28, 28);
-            pCtx.drawImage(canvas, minX - padding, minY - padding, size, size, 0, 0, 28, 28);
-
-            return tf.tidy(() => {
-                let tensor = tf.browser.fromPixels(procCanvas, 1);
-                tensor = tf.cast(tensor, 'float32');
-                tensor = tf.scalar(255).sub(tensor).div(tf.scalar(255));
-                return tensor.expandDims(0);
-            });
+            const pad = 50, s = Math.max((maxX-minX)+pad*2, (maxY-minY)+pad*2);
+            pCtx.fillStyle = "white"; pCtx.fillRect(0, 0, 28, 28);
+            pCtx.drawImage(canvas, minX-pad, minY-pad, s, s, 0, 0, 28, 28);
+            return tf.tidy(() => tf.scalar(255).sub(tf.cast(tf.browser.fromPixels(procCanvas, 1), 'float32')).div(tf.scalar(255)).expandDims(0));
         }
 
         async function predict() {
             if (communityDataset.length === 0) return;
             const tensor = getProcessedTensor();
-            
-            if (tensor === "empty") {
-                resetPredictionUI();
-                return;
-            }
-
-            const inputPixels = Array.from(tensor.dataSync());
+            if (tensor === "empty") { resetPredictionUI(); return; }
+            const input = Array.from(tensor.dataSync());
             tensor.dispose();
-
-            const distances = communityDataset.map(item => {
-                let sumSq = 0;
-                for (let i = 0; i < 784; i++) {
-                    const diff = inputPixels[i] - item.pixels[i];
-                    sumSq += diff * diff;
-                }
-                const mse = sumSq / 784;
-                const similarity = Math.max(0, 1 - mse);
-                return { label: item.label, prob: similarity };
-            });
-
-            distances.sort((a, b) => b.prob - a.prob);
-
-            const uniqueResults = [];
-            const seen = new Set();
-            for (const d of distances) {
-                if (!seen.has(d.label)) {
-                    seen.add(d.label);
-                    uniqueResults.push(d);
-                }
-                if (uniqueResults.length === 5) break;
-            }
-
-            if(uniqueResults.length > 0) {
-                updateUI(uniqueResults);
-            }
+            const results = communityDataset.map(item => ({ label: item.label, prob: Math.max(0, 1 - (input.reduce((sum, v, i) => sum + Math.pow(v - item.pixels[i], 2), 0) / 784)) }));
+            results.sort((a, b) => b.prob - a.prob);
+            const unique = []; const seen = new Set();
+            for (const r of results) { if (!seen.has(r.label)) { seen.add(r.label); unique.push(r); } if (unique.length === 5) break; }
+            updateUI(unique);
         }
 
         function updateUI(results) {
             const top = results[0];
             const robot = document.getElementById('robotIcon');
-            
-            if (top && top.prob > 0.6) { 
+            if (top && top.prob > 0.6) {
                 document.getElementById('topPrediction').textContent = top.label;
                 document.getElementById('topConfidenceText').textContent = `${Math.round(top.prob * 100)}% Match`;
                 document.getElementById('topBar').style.width = `${top.prob * 100}%`;
                 robot.classList.add('robot-thinking');
-            } else {
-                resetPredictionUI();
-            }
-
-            const others = document.getElementById('otherGuesses');
-            others.innerHTML = '';
+            } else resetPredictionUI();
+            const others = document.getElementById('otherGuesses'); others.innerHTML = '';
             results.slice(1).forEach(r => {
                 if (r.prob < 0.4) return;
                 const div = document.createElement('div');
@@ -420,183 +285,57 @@
         }
 
         document.getElementById('btnSubmitData').onclick = async () => {
-            if (!window.currentUser) {
-                console.warn("Auth not ready");
-                return;
-            }
+            if (!window.currentUser) return;
             const label = document.getElementById('labelInput').value.trim().toLowerCase();
-            const status = document.getElementById('submitStatus');
-            const btn = document.getElementById('btnSubmitData');
-            
-            if (!label) {
-                status.textContent = "Label needed!";
-                status.className = "text-[10px] text-center font-bold text-red-500 uppercase";
-                status.classList.remove('hidden');
-                return;
-            }
-
-            btn.disabled = true;
-            status.textContent = "Teaching Brain...";
-            status.className = "text-[10px] text-center font-bold text-blue-400 uppercase";
-            status.classList.remove('hidden');
-
+            const status = document.getElementById('submitStatus'), btn = document.getElementById('btnSubmitData');
+            if (!label) { status.textContent = "Label needed!"; status.className = "text-[10px] text-red-500 font-bold uppercase"; status.classList.remove('hidden'); return; }
+            btn.disabled = true; status.textContent = "Teaching..."; status.className = "text-[10px] text-blue-400 font-bold uppercase"; status.classList.remove('hidden');
             try {
                 const tensor = getProcessedTensor();
-                if (tensor === "empty") throw new Error("Canvas is empty");
-                
-                const pixels = await tensor.data();
-                const pixelArray = Array.from(pixels); 
-                tensor.dispose();
-
-                const trainingColl = window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training');
-                
-                await window.addDoc(trainingColl, {
-                    label: label,
-                    pixels: pixelArray,
-                    timestamp: window.serverTimestamp(),
-                    userId: window.currentUser.uid
+                if (tensor === "empty") throw new Error("Empty");
+                const pixels = Array.from(await tensor.data()); tensor.dispose();
+                await window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training'), {
+                    label: label, pixels: pixels, timestamp: window.serverTimestamp(), userId: window.currentUser.uid
                 });
-
-                status.textContent = "Global Brain Updated!";
-                status.className = "text-[10px] text-center font-bold text-green-500 uppercase";
+                status.textContent = "Brain Updated!"; status.className = "text-[10px] text-green-500 font-bold uppercase";
                 document.getElementById('labelInput').value = '';
-                
-                setTimeout(() => {
-                    ctx.fillStyle = 'white';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    if(communityDataset.length > 0) predict();
-                }, 500);
-
-            } catch (err) {
-                console.error("Submission Error:", err);
-                status.textContent = "Error Syncing";
-                status.className = "text-[10px] text-center font-bold text-red-500 uppercase";
-            } finally {
-                btn.disabled = false;
-                setTimeout(() => status.classList.add('hidden'), 5000);
-            }
+                setTimeout(() => { ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height); }, 500);
+            } catch (err) { console.error(err); status.textContent = "Error Syncing"; status.className = "text-[10px] text-red-500 font-bold uppercase"; }
+            finally { btn.disabled = false; setTimeout(() => status.classList.add('hidden'), 5000); }
         };
 
-        const adminModal = document.getElementById('adminModal');
-        const btnAdmin = document.getElementById('btnAdmin');
-        const btnCloseAdmin = document.getElementById('btnCloseAdmin');
-        const adminAuthView = document.getElementById('adminAuthView');
-        const adminDataView = document.getElementById('adminDataView');
-        const adminPassword = document.getElementById('adminPassword');
-        const btnAdminLogin = document.getElementById('btnAdminLogin');
-        const adminDataList = document.getElementById('adminDataList');
-
-        btnAdmin.onclick = () => {
-            adminModal.classList.remove('hidden');
-            adminModal.classList.add('flex');
-        };
-
-        btnCloseAdmin.onclick = () => {
-            adminModal.classList.add('hidden');
-            adminModal.classList.remove('flex');
-            adminPassword.value = '';
-            adminAuthView.classList.remove('hidden');
-            adminAuthView.classList.add('flex');
-            adminDataView.classList.add('hidden');
-            adminDataView.classList.remove('flex');
-            document.getElementById('adminAuthError').classList.add('hidden');
-        };
-
-        btnAdminLogin.onclick = () => {
-            if (adminPassword.value === 'password') {
-                adminAuthView.classList.add('hidden');
-                adminAuthView.classList.remove('flex');
-                adminDataView.classList.remove('hidden');
-                adminDataView.classList.add('flex');
-                renderAdminData();
-            } else {
-                document.getElementById('adminAuthError').classList.remove('hidden');
-            }
+        const adminModal = document.getElementById('adminModal'), adminPassword = document.getElementById('adminPassword'), adminDataList = document.getElementById('adminDataList');
+        document.getElementById('btnAdmin').onclick = () => { adminModal.classList.remove('hidden'); adminModal.classList.add('flex'); };
+        document.getElementById('btnCloseAdmin').onclick = () => { adminModal.classList.add('hidden'); adminModal.classList.remove('flex'); };
+        document.getElementById('btnAdminLogin').onclick = () => {
+            if (adminPassword.value === 'password') { adminAuthView.classList.add('hidden'); adminDataView.classList.remove('hidden'); renderAdminData(); }
+            else document.getElementById('adminAuthError').classList.remove('hidden');
         };
 
         window.renderAdminData = function() {
             adminDataList.innerHTML = '';
-            if (communityDataset.length === 0) {
-                adminDataList.innerHTML = '<p class="text-gray-400 text-center py-4">Database is empty.</p>';
-                return;
-            }
-            
-            const sortedData = [...communityDataset].sort((a, b) => {
-                const timeA = a.timestamp?.toMillis() || 0;
-                const timeB = b.timestamp?.toMillis() || 0;
-                return timeB - timeA;
-            });
-
-            sortedData.forEach(item => {
+            [...communityDataset].sort((a,b) => (b.timestamp?.toMillis()||0) - (a.timestamp?.toMillis()||0)).forEach(item => {
                 const row = document.createElement('div');
                 row.className = "flex items-center gap-4 bg-[#1e1f22] p-3 rounded-xl border border-white/5 w-full";
-                
-                const canvasHTML = `<canvas id="canvas_${item.id}" width="28" height="28" class="bg-white rounded w-12 h-12 pixelated border border-gray-600"></canvas>`;
-                
-                row.innerHTML = `
-                    ${canvasHTML}
-                    <div class="flex-1">
-                        <input type="text" id="input_${item.id}" value="${item.label}" class="w-full bg-[#2b2d31] border border-white/10 rounded px-3 py-2 text-sm text-white focus:ring-1 focus:ring-[#5865f2] outline-none">
-                    </div>
-                `;
-
-                const btnSave = document.createElement('button');
-                btnSave.className = "bg-[#248046] hover:bg-[#1a6334] px-4 py-2 rounded text-xs font-bold text-white transition-colors";
-                btnSave.textContent = "Save";
-                btnSave.onclick = () => window.saveItem(item.id);
-
-                const btnDel = document.createElement('button');
-                btnDel.className = "bg-[#da373c] hover:bg-[#a1282c] px-4 py-2 rounded text-xs font-bold text-white transition-colors";
-                btnDel.textContent = "Delete";
-                btnDel.onclick = () => window.deleteItem(item.id);
-
-                row.appendChild(btnSave);
-                row.appendChild(btnDel);
-                adminDataList.appendChild(row);
-
-                requestAnimationFrame(() => {
-                    const c = document.getElementById(`canvas_${item.id}`);
-                    if (c) {
-                        const ctx = c.getContext('2d');
-                        const imgData = ctx.createImageData(28, 28);
-                        for (let i = 0; i < 784; i++) {
-                            const val = (1 - item.pixels[i]) * 255;
-                            const idx = i * 4;
-                            imgData.data[idx] = val;     
-                            imgData.data[idx+1] = val;   
-                            imgData.data[idx+2] = val;   
-                            imgData.data[idx+3] = 255;   
-                        }
-                        ctx.putImageData(imgData, 0, 0);
-                    }
-                });
+                row.innerHTML = `<canvas id="canvas_${item.id}" width="28" height="28" class="bg-white rounded w-12 h-12 pixelated border border-gray-600"></canvas>
+                    <div class="flex-1"><input type="text" id="input_${item.id}" value="${item.label}" class="w-full bg-[#2b2d31] border border-white/10 rounded px-3 py-2 text-sm text-white"></div>`;
+                const btnSave = document.createElement('button'), btnDel = document.createElement('button');
+                btnSave.className = "bg-[#248046] px-4 py-2 rounded text-xs font-bold text-white"; btnSave.textContent = "Save";
+                btnSave.onclick = async () => {
+                    const l = document.getElementById(`input_${item.id}`).value.trim().toLowerCase();
+                    await window.updateDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training', item.id), { label: l });
+                };
+                btnDel.className = "bg-[#da373c] px-4 py-2 rounded text-xs font-bold text-white"; btnDel.textContent = "Delete";
+                btnDel.onclick = async () => { if(confirm("Delete?")) await window.deleteDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training', item.id)); };
+                row.append(btnSave, btnDel); adminDataList.appendChild(row);
+                setTimeout(() => {
+                    const c = document.getElementById(`canvas_${item.id}`); if (!c) return;
+                    const id = c.getContext('2d').createImageData(28,28);
+                    for(let i=0; i<784; i++) { const v=(1-item.pixels[i])*255; id.data[i*4]=v; id.data[i*4+1]=v; id.data[i*4+2]=v; id.data[i*4+3]=255; }
+                    c.getContext('2d').putImageData(id, 0, 0);
+                }, 0);
             });
         };
-
-        window.saveItem = async function(id) {
-            if (!window.currentUser) return;
-            const input = document.getElementById(`input_${id}`);
-            if (!input) return;
-            const newLabel = input.value.trim().toLowerCase();
-            if(!newLabel) return;
-            try {
-                const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training', id);
-                await window.updateDoc(docRef, { label: newLabel });
-                input.style.borderColor = "#248046";
-                setTimeout(() => input.style.borderColor = "", 1000);
-            } catch(e) { console.error("Update Error:", e); }
-        };
-
-        window.deleteItem = async function(id) {
-            if (!window.currentUser) return;
-            if(!confirm("Permanently delete this from the global brain?")) return;
-            try {
-                const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training', id);
-                await window.deleteDoc(docRef);
-            } catch(e) { console.error("Delete Error:", e); }
-        };
-
-        window.onload = () => {};
     </script>
 </body>
 </html>
