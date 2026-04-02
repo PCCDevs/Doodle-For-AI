@@ -3,79 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DoodleBot AI + Community Training</title>
+    <title>Doodle for AI</title>
     
+    <!-- TensorFlow for AI -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <!-- PeerJS for Zero-Setup Realtime Multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- Tailwind for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- GITHUB DEPLOYMENT FIX ---
-        // If you are deploying to GitHub, replace the line below with your actual Firebase config object:
-        // const firebaseConfig = { apiKey: "...", authDomain: "...", ... };
-        let firebaseConfig;
-        try {
-            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-                apiKey: "AIzaSyCaNahh-MwnI-W8tnguI4530ifMYIixL7s",
-          authDomain: "firedev-5128b.firebaseapp.com",
-          projectId: "firedev-5128b",
-          storageBucket: "firedev-5128b.firebasestorage.app",
-          messagingSenderId: "948990270003",
-          appId: "1:948990270003:web:43d0bd7e1c30ef94f62146",
-          measurementId: "G-ET93NQZLD9"
-            };
-        } catch (e) {
-            console.error("Firebase config missing or invalid.");
-        }
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'global-doodle-bot';
-
-        window.db = db;
-        window.appId = appId;
-        window.addDoc = addDoc;
-        window.collection = collection;
-        window.serverTimestamp = serverTimestamp;
-        window.onSnapshot = onSnapshot;
-        window.query = query;
-        window.deleteDoc = deleteDoc;
-        window.doc = doc;
-        window.updateDoc = updateDoc;
-
-        const initAuth = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Auth error", error);
-                document.getElementById('loadingStatus').innerHTML = `<p class="text-red-500 font-bold">Auth Failed: Check Firebase Config</p>`;
-            }
-        };
-        
-        onAuthStateChanged(auth, (user) => {
-            window.currentUser = user;
-            if(user) {
-                if (window.startCommunityBrain) window.startCommunityBrain();
-            }
-        });
-
-        initAuth();
-    </script>
-
     <style>
         :root {
             --bg-dark: #313338;
             --bg-sidebar: #2b2d31;
             --text-main: #dbdee1;
-            --accent: #5865f2;
             --canvas-bg: #35393e; 
         }
         body { background-color: var(--bg-dark); color: var(--text-main); overflow: hidden; margin: 0; padding: 0; }
@@ -91,19 +32,24 @@
 </head>
 <body class="h-screen w-screen flex flex-col md:flex-row font-sans">
 
+    <!-- Main Drawing Area -->
     <div class="flex-1 md:w-[70%] h-full flex flex-col relative bg-[#35393e]">
         <div class="absolute top-4 left-4 right-4 z-10 pointer-events-none flex items-start justify-between">
             <div class="bg-black/40 backdrop-blur-md p-3 rounded-xl border border-white/10 pointer-events-auto">
                 <h1 class="text-lg font-bold text-white flex items-center gap-2">
-                    <span class="bg-[#5865f2] p-1 rounded text-sm">🎨</span> Community AI
+                    <span class="bg-[#5865f2] p-1 rounded text-sm">🎨</span> DoodleBot
                 </h1>
-                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Shared Global Brain</p>
+                <p class="text-[10px] text-green-400 font-bold uppercase tracking-widest mt-1 flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Brain Ready
+                </p>
             </div>
-            <button id="btnClear" class="pointer-events-auto px-4 py-2 bg-[#da373c] hover:bg-[#a1282c] text-white rounded-lg font-bold text-sm shadow-xl transition-all">Clear</button>
+            <button id="btnClear" class="pointer-events-auto px-4 py-2 bg-[#da373c] hover:bg-[#a1282c] text-white rounded-lg font-bold text-sm shadow-xl transition-all">Clear Canvas</button>
         </div>
+        
         <div id="canvasContainer" class="flex-1 w-full h-full overflow-hidden">
             <canvas id="drawCanvas"></canvas>
         </div>
+
         <div class="absolute bottom-6 left-1/2 -translate-x-1/2 flex bg-[#111214]/90 backdrop-blur-lg p-2 rounded-2xl shadow-2xl border border-white/10 gap-2 items-center z-10">
             <button id="btnBrush" class="p-3 rounded-xl hover:bg-[#35373c] transition-colors" title="Brush"><span class="text-2xl">🖌️</span></button>
             <button id="btnEraser" class="p-3 rounded-xl hover:bg-[#35373c] transition-colors" title="Eraser"><span class="text-2xl">🧽</span></button>
@@ -116,13 +62,13 @@
         <canvas id="processCanvas" width="28" height="28" class="hidden"></canvas>
     </div>
 
+    <!-- AI Sidebar -->
     <div class="w-full md:w-[30%] bg-[#2b2d31] border-l border-[#1e1f22] flex flex-col p-6 shadow-2xl overflow-y-auto sidebar-scroll z-20 relative">
-        <button id="btnAdmin" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">⚙️</button>
-        <div id="loadingStatus" class="flex-1 flex flex-col items-center justify-center space-y-4">
-            <div class="text-6xl animate-bounce">🧠</div>
-            <p class="text-lg font-bold text-white">Connecting to Community Brain...</p>
-        </div>
-        <div id="resultsArea" class="hidden flex-1 flex flex-col space-y-6">
+        <button id="btnAdmin" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors" title="Admin Panel">⚙️</button>
+        
+        <div id="resultsArea" class="flex-1 flex flex-col space-y-6">
+            
+            <!-- Live Inference UI -->
             <div class="flex flex-col items-center text-center pt-4">
                 <div id="robotIcon" class="text-8xl mb-4 drop-shadow-2xl">🤖</div>
                 <div class="bg-[#1e1f22] p-5 rounded-2xl w-full border border-white/5 shadow-inner">
@@ -134,37 +80,86 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Add to Brain Section -->
             <div class="bg-[#232428] rounded-2xl p-5 border border-[#5865f2]/30 shadow-lg">
-                <p class="text-[11px] font-black text-[#5865f2] uppercase tracking-[0.2em] mb-3 flex items-center gap-2"><span class="animate-pulse">🟢</span> Global Training</p>
-                <div class="space-y-4">
-                    <input type="text" id="labelInput" placeholder="Label (e.g. 'cat')" class="w-full bg-[#1e1f22] border border-white/5 rounded-xl p-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#5865f2]/50 transition-all">
-                    <button id="btnSubmitData" class="w-full py-4 bg-[#5865f2] hover:bg-[#4752c4] text-white rounded-xl font-black text-sm transition-all transform active:scale-95 flex items-center justify-center gap-2">📥 Feed the Brain</button>
+                <div class="flex justify-between items-center mb-3">
+                    <p class="text-[11px] font-black text-[#5865f2] uppercase tracking-[0.2em] flex items-center gap-2">
+                        <span>🧠</span> Teach the AI
+                    </p>
+                    <span id="localSaveBadge" class="text-[9px] font-bold text-green-500 uppercase px-2 py-1 bg-green-500/10 rounded hidden">💾 Saved Locally</span>
+                </div>
+                <div class="space-y-3">
+                    <input type="text" id="labelInput" placeholder="Label (e.g. 'cat')" class="w-full bg-[#1e1f22] border border-white/5 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#5865f2]/50 transition-all">
+                    <button id="btnSubmitData" class="w-full py-3 bg-[#5865f2] hover:bg-[#4752c4] text-white rounded-xl font-bold text-sm transition-all transform active:scale-95 flex items-center justify-center gap-2">📥 Add to Memory</button>
                     <p id="submitStatus" class="text-[10px] text-center font-bold uppercase hidden"></p>
                 </div>
             </div>
+
+            <!-- Real-Time Multiplayer Network -->
+            <div class="bg-[#232428] rounded-2xl p-5 border border-white/10 shadow-lg">
+                <p class="text-[11px] font-black text-[#b5bac1] uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                    <span>🌐</span> Live Network Sync
+                </p>
+                
+                <!-- Unconnected State -->
+                <div id="networkSetupUI" class="space-y-3">
+                    <button id="btnHostSession" class="w-full py-3 bg-[#4e5058] hover:bg-[#6d6f78] text-white rounded-xl font-bold text-xs transition-all uppercase tracking-widest">📡 Host Live Brain</button>
+                    <div class="flex items-center gap-2">
+                        <div class="h-px bg-white/10 flex-1"></div>
+                        <span class="text-[10px] text-gray-500 font-bold uppercase">OR</span>
+                        <div class="h-px bg-white/10 flex-1"></div>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="joinCodeInput" placeholder="4-Letter Code" maxlength="4" class="flex-1 bg-[#1e1f22] border border-white/5 rounded-xl px-3 py-2 text-center text-white font-bold uppercase focus:outline-none focus:ring-1 focus:ring-[#248046]">
+                        <button id="btnJoinSession" class="px-4 bg-[#248046] hover:bg-[#1a6334] text-white rounded-xl font-bold text-xs transition-all uppercase">Join</button>
+                    </div>
+                    <p class="text-[9px] text-gray-500 text-center">Room data only exists while host is online.</p>
+                </div>
+
+                <!-- Connected State -->
+                <div id="networkActiveUI" class="hidden flex-col items-center justify-center py-2 space-y-2">
+                    <p class="text-xs text-gray-300">Status: <span class="text-green-400 font-bold">🟢 Connected</span></p>
+                    <div class="bg-black/30 px-4 py-2 rounded-lg border border-green-500/30 text-center w-full relative">
+                        <p class="text-[9px] text-gray-500 uppercase font-black">Room Code</p>
+                        <p id="activeRoomCode" class="text-2xl font-mono font-bold text-white tracking-widest">----</p>
+                    </div>
+                    <button id="btnLeaveRoom" class="text-[10px] text-red-400 hover:text-red-300 font-bold uppercase mt-1">Disconnect</button>
+                </div>
+            </div>
+
             <div id="otherGuesses" class="space-y-2"></div>
         </div>
     </div>
 
+    <!-- Admin Modal -->
     <div id="adminModal" class="fixed inset-0 bg-black/80 z-50 hidden flex-col items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-[#2b2d31] p-6 rounded-2xl w-full max-w-2xl flex flex-col max-h-[90vh] border border-white/10 shadow-2xl">
+        <div class="bg-[#2b2d31] p-6 rounded-2xl w-full max-w-3xl flex flex-col max-h-[90vh] border border-white/10 shadow-2xl">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-white">⚙️ Database Admin</h2>
-                <button id="btnCloseAdmin" class="text-gray-400 hover:text-white text-3xl">&times;</button>
+                <h2 class="text-xl font-bold text-white">⚙️ Local Database Admin</h2>
+                <button id="btnCloseAdmin" class="text-gray-400 hover:text-white text-3xl leading-none">&times;</button>
             </div>
+            
             <div id="adminAuthView" class="flex flex-col space-y-4 py-8">
                 <input type="password" id="adminPassword" placeholder="Admin Password" class="bg-[#1e1f22] border border-white/5 rounded-xl p-4 text-white focus:outline-none text-center">
-                <button id="btnAdminLogin" class="bg-[#5865f2] hover:bg-[#4752c4] py-3 rounded-xl text-white font-bold">Login</button>
-                <p id="adminAuthError" class="text-red-500 text-sm font-bold text-center hidden">Incorrect Password</p>
+                <button id="btnAdminLogin" class="bg-[#5865f2] hover:bg-[#4752c4] py-3 rounded-xl text-white font-bold transition-colors">Login</button>
+                <p id="adminAuthError" class="text-red-500 text-sm font-bold text-center hidden">Incorrect Password (hint: password)</p>
             </div>
+
             <div id="adminDataView" class="hidden flex-col flex-1 overflow-hidden">
+                <div class="flex gap-2 mb-4 bg-[#1e1f22] p-3 rounded-xl border border-white/5">
+                    <button id="btnClearDB" class="bg-[#da373c] hover:bg-[#a1282c] px-4 py-3 rounded-lg text-sm font-bold text-white transition-colors w-full">🗑️ Wipe Device Memory</button>
+                </div>
                 <div class="overflow-y-auto pr-2 space-y-3 flex-1 sidebar-scroll" id="adminDataList"></div>
             </div>
         </div>
     </div>
 
     <script>
+        // --- GLOBAL DATA ---
         let communityDataset = [];
+        
+        // --- CANVAS SETUP ---
         const canvas = document.getElementById('drawCanvas');
         const canvasContainer = document.getElementById('canvasContainer');
         const procCanvas = document.getElementById('processCanvas');
@@ -181,12 +176,10 @@
         function resizeCanvas() {
             const width = canvasContainer.clientWidth, height = canvasContainer.clientHeight;
             if (width <= 0 || height <= 0) return;
-            const temp = document.createElement('canvas');
-            temp.width = canvas.width; temp.height = canvas.height;
-            temp.getContext('2d').drawImage(canvas, 0, 0);
+            const temp = ctx.getImageData(0, 0, canvas.width, canvas.height);
             canvas.width = width; canvas.height = height;
             ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(temp, 0, 0);
+            ctx.putImageData(temp, 0, 0);
             ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         }
         new ResizeObserver(resizeCanvas).observe(canvasContainer);
@@ -205,33 +198,143 @@
         window.addEventListener('mouseup', () => isDrawing = false);
         canvas.addEventListener('touchstart', startDrawing, {passive:false});
         canvas.addEventListener('touchmove', draw, {passive:false});
-
         document.getElementById('btnClear').onclick = () => { ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height); resetPredictionUI(); };
+
+        // --- P2P REALTIME MULTIPLAYER (PEER.JS) ---
+        let peer = null;
+        let isHost = false;
+        let connections = [];
+
+        // Warn user before closing if they are hosting a live room
+        window.addEventListener('beforeunload', (e) => {
+            if (isHost && connections.length > 0) {
+                e.preventDefault();
+                e.returnValue = 'You are hosting a room! If you leave, others will be disconnected. Your data will remain saved on your device.';
+            }
+        });
+
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            let result = '';
+            for (let i = 0; i < 4; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+            return result;
+        }
+
+        function setupNetworkUI(code) {
+            document.getElementById('networkSetupUI').classList.add('hidden');
+            document.getElementById('networkActiveUI').classList.remove('hidden');
+            document.getElementById('networkActiveUI').classList.add('flex');
+            document.getElementById('activeRoomCode').textContent = code;
+            localStorage.setItem('last_room_code', code); // Remember last room
+        }
+
+        function handleIncomingData(data) {
+            if(data.type === 'SYNC_FULL_BRAIN') {
+                const oldLen = communityDataset.length;
+                const existingIds = new Set(communityDataset.map(d => d.id));
+                data.dataset.forEach(item => {
+                    if(!existingIds.has(item.id)) communityDataset.push(item);
+                });
+                saveToLocalStorage();
+                resetPredictionUI();
+            } 
+            else if (data.type === 'NEW_DOODLE') {
+                const existing = communityDataset.find(d => d.id === data.item.id);
+                if(!existing) {
+                    communityDataset.push(data.item);
+                    saveToLocalStorage();
+                    resetPredictionUI();
+                    
+                    if(isHost) {
+                        connections.forEach(conn => {
+                            if(conn.peer !== data.senderId) conn.send({ type: 'NEW_DOODLE', item: data.item, senderId: peer.id });
+                        });
+                    }
+                }
+            }
+        }
+
+        document.getElementById('btnHostSession').onclick = () => {
+            const btn = document.getElementById('btnHostSession');
+            btn.textContent = "Creating Room..."; btn.disabled = true;
+            
+            const roomCode = generateRoomCode();
+            peer = new Peer('doodlebot-' + roomCode);
+            isHost = true;
+            
+            peer.on('open', (id) => setupNetworkUI(roomCode));
+
+            peer.on('connection', (conn) => {
+                connections.push(conn);
+                conn.on('open', () => conn.send({ type: 'SYNC_FULL_BRAIN', dataset: communityDataset }));
+                conn.on('data', handleIncomingData);
+                conn.on('close', () => connections = connections.filter(c => c !== conn));
+            });
+
+            peer.on('error', (err) => {
+                alert("Network Error: " + err.message);
+                btn.textContent = "📡 Host Live Brain"; btn.disabled = false;
+                isHost = false;
+            });
+        };
+
+        document.getElementById('btnJoinSession').onclick = () => {
+            const input = document.getElementById('joinCodeInput');
+            const code = input.value.trim().toUpperCase();
+            if(code.length !== 4) return alert("Enter a 4-letter code");
+            
+            const btn = document.getElementById('btnJoinSession');
+            btn.textContent = "Joining..."; btn.disabled = true;
+
+            peer = new Peer();
+            isHost = false;
+            peer.on('open', (id) => {
+                const conn = peer.connect('doodlebot-' + code);
+                conn.on('open', () => { connections.push(conn); setupNetworkUI(code); });
+                conn.on('data', handleIncomingData);
+                conn.on('close', () => { alert("Host disconnected."); location.reload(); });
+            });
+
+            peer.on('error', (err) => {
+                alert("Could not connect. Did the host close the website?");
+                btn.textContent = "Join"; btn.disabled = false;
+            });
+        };
+
+        document.getElementById('btnLeaveRoom').onclick = () => location.reload();
+
+        function broadcastNewDoodle(item) {
+            connections.forEach(conn => conn.send({ type: 'NEW_DOODLE', item: item, senderId: peer ? peer.id : 'unknown' }));
+        }
+
+
+        // --- PREDICTION & AI ENGINE ---
+        function saveToLocalStorage() {
+            localStorage.setItem('doodle_dataset', JSON.stringify(communityDataset));
+            const badge = document.getElementById('localSaveBadge');
+            badge.classList.remove('hidden');
+            setTimeout(() => badge.classList.add('hidden'), 3000);
+        }
 
         function resetPredictionUI() {
             document.getElementById('topPrediction').textContent = "...";
-            document.getElementById('topConfidenceText').textContent = communityDataset.length > 0 ? `Synced with ${communityDataset.length} doodles` : "Draw something!";
+            document.getElementById('topConfidenceText').textContent = communityDataset.length > 0 ? `Brain size: ${communityDataset.length} items` : "Draw something!";
             document.getElementById('topBar').style.width = "0%";
             document.getElementById('otherGuesses').innerHTML = '';
             document.getElementById('robotIcon').classList.remove('robot-thinking');
         }
 
         window.startCommunityBrain = function() {
-            if (!window.db) return;
-            const statusEl = document.getElementById('loadingStatus');
-            const collRef = window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training');
+            const savedData = localStorage.getItem('doodle_dataset');
+            if (savedData) {
+                try { communityDataset = JSON.parse(savedData); } catch(e) { communityDataset = []; }
+            }
             
-            window.onSnapshot(window.query(collRef), (snapshot) => {
-                communityDataset = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                statusEl.classList.add('hidden');
-                document.getElementById('resultsArea').classList.remove('hidden');
-                resetPredictionUI();
-                if (!adminDataView.classList.contains('hidden')) renderAdminData();
-            }, (err) => {
-                console.error(err);
-                statusEl.innerHTML = `<p class="text-red-500">Database Connection Blocked</p>`;
-            });
+            // Suggest previous room code
+            const lastCode = localStorage.getItem('last_room_code');
+            if (lastCode) document.getElementById('joinCodeInput').value = lastCode;
 
+            resetPredictionUI();
             if (!window.predictInterval) window.predictInterval = setInterval(predict, 800);
         };
 
@@ -258,25 +361,34 @@
             if (tensor === "empty") { resetPredictionUI(); return; }
             const input = Array.from(tensor.dataSync());
             tensor.dispose();
-            const results = communityDataset.map(item => ({ label: item.label, prob: Math.max(0, 1 - (input.reduce((sum, v, i) => sum + Math.pow(v - item.pixels[i], 2), 0) / 784)) }));
+            
+            const results = communityDataset.map(item => {
+                const diff = input.reduce((sum, v, i) => sum + Math.pow(v - item.pixels[i], 2), 0) / 784;
+                return { label: item.label, prob: Math.max(0, 1 - diff) };
+            });
+            
             results.sort((a, b) => b.prob - a.prob);
             const unique = []; const seen = new Set();
-            for (const r of results) { if (!seen.has(r.label)) { seen.add(r.label); unique.push(r); } if (unique.length === 5) break; }
+            for (const r of results) { 
+                if (!seen.has(r.label)) { seen.add(r.label); unique.push(r); } 
+                if (unique.length === 5) break; 
+            }
             updateUI(unique);
         }
 
         function updateUI(results) {
             const top = results[0];
             const robot = document.getElementById('robotIcon');
-            if (top && top.prob > 0.6) {
+            if (top && top.prob > 0.65) {
                 document.getElementById('topPrediction').textContent = top.label;
                 document.getElementById('topConfidenceText').textContent = `${Math.round(top.prob * 100)}% Match`;
                 document.getElementById('topBar').style.width = `${top.prob * 100}%`;
                 robot.classList.add('robot-thinking');
             } else resetPredictionUI();
+            
             const others = document.getElementById('otherGuesses'); others.innerHTML = '';
             results.slice(1).forEach(r => {
-                if (r.prob < 0.4) return;
+                if (r.prob < 0.45) return;
                 const div = document.createElement('div');
                 div.className = "flex items-center justify-between text-xs bg-[#1e1f22] p-3 rounded-lg border border-white/5";
                 div.innerHTML = `<span class="capitalize font-medium text-gray-300">${r.label}</span><span class="text-[#5865f2] font-bold">${Math.round(r.prob * 100)}%</span>`;
@@ -284,50 +396,58 @@
             });
         }
 
+        // --- SUBMITTING DATA ---
         document.getElementById('btnSubmitData').onclick = async () => {
-            if (!window.currentUser) return;
             const label = document.getElementById('labelInput').value.trim().toLowerCase();
             const status = document.getElementById('submitStatus'), btn = document.getElementById('btnSubmitData');
             if (!label) { status.textContent = "Label needed!"; status.className = "text-[10px] text-red-500 font-bold uppercase"; status.classList.remove('hidden'); return; }
-            btn.disabled = true; status.textContent = "Teaching..."; status.className = "text-[10px] text-blue-400 font-bold uppercase"; status.classList.remove('hidden');
+            
+            btn.disabled = true; status.textContent = "Saving..."; status.className = "text-[10px] text-blue-400 font-bold uppercase"; status.classList.remove('hidden');
+            
             try {
                 const tensor = getProcessedTensor();
-                if (tensor === "empty") throw new Error("Empty");
+                if (tensor === "empty") throw new Error();
                 const pixels = Array.from(await tensor.data()); tensor.dispose();
-                await window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training'), {
-                    label: label, pixels: pixels, timestamp: window.serverTimestamp(), userId: window.currentUser.uid
-                });
-                status.textContent = "Brain Updated!"; status.className = "text-[10px] text-green-500 font-bold uppercase";
+                
+                const newItem = { id: Date.now().toString() + Math.random().toString(36).substr(2,5), label, pixels, timestamp: Date.now() };
+                
+                // 1. Save Locally
+                communityDataset.push(newItem);
+                saveToLocalStorage();
+                
+                // 2. Broadcast to connected peers
+                broadcastNewDoodle(newItem);
+
+                status.textContent = "Added!"; status.className = "text-[10px] text-green-500 font-bold uppercase";
                 document.getElementById('labelInput').value = '';
-                setTimeout(() => { ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height); }, 500);
-            } catch (err) { console.error(err); status.textContent = "Error Syncing"; status.className = "text-[10px] text-red-500 font-bold uppercase"; }
-            finally { btn.disabled = false; setTimeout(() => status.classList.add('hidden'), 5000); }
+                setTimeout(() => { ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height); predict(); }, 500);
+            } catch (err) { status.textContent = "Canvas is empty!"; status.className = "text-[10px] text-red-500 font-bold uppercase"; 
+            } finally { btn.disabled = false; setTimeout(() => status.classList.add('hidden'), 3000); }
         };
 
+        // --- ADMIN PANEL ---
         const adminModal = document.getElementById('adminModal'), adminPassword = document.getElementById('adminPassword'), adminDataList = document.getElementById('adminDataList');
-        document.getElementById('btnAdmin').onclick = () => { adminModal.classList.remove('hidden'); adminModal.classList.add('flex'); };
+        document.getElementById('btnAdmin').onclick = () => { adminModal.classList.remove('hidden'); adminModal.classList.add('flex'); renderAdminData(); };
         document.getElementById('btnCloseAdmin').onclick = () => { adminModal.classList.add('hidden'); adminModal.classList.remove('flex'); };
+        
         document.getElementById('btnAdminLogin').onclick = () => {
-            if (adminPassword.value === 'password') { adminAuthView.classList.add('hidden'); adminDataView.classList.remove('hidden'); renderAdminData(); }
-            else document.getElementById('adminAuthError').classList.remove('hidden');
+            if (adminPassword.value === 'password') { 
+                document.getElementById('adminAuthView').classList.add('hidden'); 
+                document.getElementById('adminDataView').classList.remove('hidden'); 
+                document.getElementById('adminDataView').classList.add('flex'); 
+                renderAdminData(); 
+            } else document.getElementById('adminAuthError').classList.remove('hidden');
         };
 
         window.renderAdminData = function() {
-            adminDataList.innerHTML = '';
-            [...communityDataset].sort((a,b) => (b.timestamp?.toMillis()||0) - (a.timestamp?.toMillis()||0)).forEach(item => {
+            adminDataList.innerHTML = communityDataset.length === 0 ? '<p class="text-gray-400 text-center py-8">No items saved locally.</p>' : '';
+            [...communityDataset].sort((a,b) => b.timestamp - a.timestamp).slice(0, 100).forEach(item => {
                 const row = document.createElement('div');
                 row.className = "flex items-center gap-4 bg-[#1e1f22] p-3 rounded-xl border border-white/5 w-full";
-                row.innerHTML = `<canvas id="canvas_${item.id}" width="28" height="28" class="bg-white rounded w-12 h-12 pixelated border border-gray-600"></canvas>
-                    <div class="flex-1"><input type="text" id="input_${item.id}" value="${item.label}" class="w-full bg-[#2b2d31] border border-white/10 rounded px-3 py-2 text-sm text-white"></div>`;
-                const btnSave = document.createElement('button'), btnDel = document.createElement('button');
-                btnSave.className = "bg-[#248046] px-4 py-2 rounded text-xs font-bold text-white"; btnSave.textContent = "Save";
-                btnSave.onclick = async () => {
-                    const l = document.getElementById(`input_${item.id}`).value.trim().toLowerCase();
-                    await window.updateDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training', item.id), { label: l });
-                };
-                btnDel.className = "bg-[#da373c] px-4 py-2 rounded text-xs font-bold text-white"; btnDel.textContent = "Delete";
-                btnDel.onclick = async () => { if(confirm("Delete?")) await window.deleteDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'community_training', item.id)); };
-                row.append(btnSave, btnDel); adminDataList.appendChild(row);
+                row.innerHTML = `<canvas id="canvas_${item.id}" width="28" height="28" class="bg-white rounded w-10 h-10 pixelated"></canvas>
+                    <div class="flex-1 text-sm font-bold capitalize text-white">${item.label}</div>
+                    <button onclick="deleteItem('${item.id}')" class="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-3 py-1 rounded text-[10px] font-bold transition-all">DELETE</button>`;
+                adminDataList.appendChild(row);
                 setTimeout(() => {
                     const c = document.getElementById(`canvas_${item.id}`); if (!c) return;
                     const id = c.getContext('2d').createImageData(28,28);
@@ -336,6 +456,18 @@
                 }, 0);
             });
         };
+
+        window.deleteItem = (id) => {
+            communityDataset = communityDataset.filter(d => d.id !== id);
+            saveToLocalStorage();
+            renderAdminData(); predict();
+        };
+
+        document.getElementById('btnClearDB').onclick = () => {
+            if(confirm("Clear memory? This deletes all data on THIS device.")) { communityDataset = []; localStorage.removeItem('doodle_dataset'); renderAdminData(); resetPredictionUI(); }
+        };
+
+        window.onload = () => { setTimeout(() => { resizeCanvas(); window.startCommunityBrain(); }, 100); };
     </script>
 </body>
 </html>
